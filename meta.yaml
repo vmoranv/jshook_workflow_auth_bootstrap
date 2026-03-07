@@ -1,0 +1,4 @@
+name: auth-bootstrap
+description: Declarative workflow for bootstrapping web authentication via form submission, optional temp-mail verification, and auth artifact extraction.
+author: vmoranv
+source_repo: https://github.com/vmoranv/jshook_workflow_auth_bootstrap
