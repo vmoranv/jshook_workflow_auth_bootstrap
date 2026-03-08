@@ -104,13 +104,17 @@ const workflow: WorkflowContract = {
   build(ctx) {
     const prefix = 'workflows.authBootstrap';
     const registerWorkflowId = ctx.getConfig<string>(`${prefix}.registerWorkflowId`, 'workflow.register-account-flow.v1');
-    const registerUrl = ctx.getConfig<string>(`${prefix}.registerUrl`, 'https://example.com/register');
+    const registerUrl = ctx.getConfig<string>(`${prefix}.registerUrl`, '');
+    if (!registerUrl) throw new Error('[workflow.auth-bootstrap] Missing required config: workflows.authBootstrap.registerUrl');
     const clearCookiesFirst = ctx.getConfig<boolean>(`${prefix}.clearCookiesFirst`, false);
     const clearStorageFirst = ctx.getConfig<boolean>(`${prefix}.clearStorageFirst`, false);
     const preAuthClearUrl = ctx.getConfig<string>(`${prefix}.preAuthClearUrl`, registerUrl.replace(/(https?:\/\/[^/]+).*/, '$1/'));
-    const username = ctx.getConfig<string>(`${prefix}.username`, 'demo-user');
-    const email = ctx.getConfig<string>(`${prefix}.email`, 'demo@example.com');
-    const password = ctx.getConfig<string>(`${prefix}.password`, 'DemoPassword123!');
+    const username = ctx.getConfig<string>(`${prefix}.username`, '');
+    const email = ctx.getConfig<string>(`${prefix}.email`, '');
+    const password = ctx.getConfig<string>(`${prefix}.password`, '');
+    if (!username || !email || !password) {
+      throw new Error(`[workflow.auth-bootstrap] Missing required config: ${[!username && 'username', !email && 'email', !password && 'password'].filter(Boolean).join(', ')} (prefix: workflows.authBootstrap.*)`);
+    }
     const includeConfirmPassword = ctx.getConfig<boolean>(`${prefix}.includeConfirmPassword`, true);
     const confirmPasswordFieldName = ctx.getConfig<string>(`${prefix}.confirmPasswordFieldName`, 'checkPassword');
     const extraFields = ctx.getConfig<Record<string, unknown>>(`${prefix}.extraFields`, {});
