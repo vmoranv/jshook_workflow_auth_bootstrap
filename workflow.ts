@@ -1,92 +1,5 @@
-type RetryPolicy = {
-  maxAttempts: number;
-  backoffMs: number;
-  multiplier?: number;
-};
-
-type WorkflowExecutionContext = {
-  workflowRunId: string;
-  profile: string;
-  invokeTool(toolName: string, args: Record<string, unknown>): Promise<unknown>;
-  emitSpan(name: string, attrs?: Record<string, unknown>): void;
-  emitMetric(
-    name: string,
-    value: number,
-    type: 'counter' | 'gauge' | 'histogram',
-    attrs?: Record<string, unknown>,
-  ): void;
-  getConfig<T = unknown>(path: string, fallback?: T): T;
-};
-
-type ToolNode = {
-  kind: 'tool';
-  id: string;
-  toolName: string;
-  input?: Record<string, unknown>;
-  timeoutMs?: number;
-  retry?: RetryPolicy;
-};
-
-type SequenceNode = {
-  kind: 'sequence';
-  id: string;
-  steps: WorkflowNode[];
-};
-
-type BranchNode = {
-  kind: 'branch';
-  id: string;
-  predicateId: string;
-  predicateFn?: (ctx: WorkflowExecutionContext) => boolean | Promise<boolean>;
-  whenTrue: WorkflowNode;
-  whenFalse?: WorkflowNode;
-};
-
-type WorkflowNode = ToolNode | SequenceNode | BranchNode;
-
-type WorkflowContract = {
-  kind: 'workflow-contract';
-  version: 1;
-  id: string;
-  displayName: string;
-  description?: string;
-  tags?: string[];
-  timeoutMs?: number;
-  defaultMaxConcurrency?: number;
-  build(ctx: WorkflowExecutionContext): WorkflowNode;
-  onStart?(ctx: WorkflowExecutionContext): Promise<void> | void;
-  onFinish?(ctx: WorkflowExecutionContext, result: unknown): Promise<void> | void;
-  onError?(ctx: WorkflowExecutionContext, error: Error): Promise<void> | void;
-};
-
-function toolNode(
-  id: string,
-  toolName: string,
-  options?: { input?: Record<string, unknown>; retry?: RetryPolicy; timeoutMs?: number },
-): ToolNode {
-  return {
-    kind: 'tool',
-    id,
-    toolName,
-    input: options?.input,
-    retry: options?.retry,
-    timeoutMs: options?.timeoutMs,
-  };
-}
-
-function sequenceNode(id: string, steps: WorkflowNode[]): SequenceNode {
-  return { kind: 'sequence', id, steps };
-}
-
-function branchNode(
-  id: string,
-  predicateId: string,
-  whenTrue: WorkflowNode,
-  whenFalse: WorkflowNode | undefined,
-  predicateFn?: (ctx: WorkflowExecutionContext) => boolean | Promise<boolean>,
-): BranchNode {
-  return { kind: 'branch', id, predicateId, predicateFn, whenTrue, whenFalse };
-}
+import type { WorkflowContract } from '@jshookmcp/extension-sdk/workflow';
+import { toolNode, sequenceNode, branchNode } from '@jshookmcp/extension-sdk/workflow';
 
 const workflowId = 'workflow.auth-bootstrap.v1';
 
@@ -135,238 +48,93 @@ const workflow: WorkflowContract = {
     const runNetworkAuthExtract = ctx.getConfig<boolean>(`${prefix}.runNetworkAuthExtract`, true);
     const authMinConfidence = ctx.getConfig<number>(`${prefix}.authMinConfidence`, 0.3);
 
-    const fields: Record<string, unknown> = {
-      username,
-      email,
-      password,
-      ...extraFields,
-    };
-    if (includeConfirmPassword) {
-      fields[confirmPasswordFieldName] = password;
-    }
+    const fields: Record<string, unknown> = { username, email, password, ...extraFields };
+    if (includeConfirmPassword) fields[confirmPasswordFieldName] = password;
 
     const registerConfig = {
       workflows: {
         registerAccount: {
-          registerUrl,
-          username,
-          email,
-          password,
-          includeConfirmPassword,
-          confirmPasswordFieldName,
-          extraFields,
-          checkboxSelectors,
-          submitSelector,
+          registerUrl, username, email, password,
+          includeConfirmPassword, confirmPasswordFieldName,
+          extraFields, checkboxSelectors, submitSelector,
           timeoutMs: registerTimeoutMs,
         },
       },
     };
 
-    const mailboxBranch = branchNode(
-      'maybe-email-verification',
-      'auth_bootstrap_enable_email_verification',
-      sequenceNode('email-verification-sequence', [
-        toolNode('open-latest-mail', 'run_extension_workflow', {
-          input: {
-            workflowId: mailOpenWorkflowId,
-            config: {
-              workflows: {
-                tempMailOpenLatest: {
-                  mailboxUrl: emailProviderUrl,
-                  ...mailOpenConfig,
-                },
-              },
-            },
-          },
-          timeoutMs: 180_000,
-        }),
-        toolNode('extract-verification-link', 'run_extension_workflow', {
-          input: {
-            workflowId: mailExtractWorkflowId,
-            config: {
-              workflows: {
-                tempMailExtractLink: {
-                  detailUrl: '',
-                  ...mailExtractConfig,
-                },
-              },
-            },
-          },
-          timeoutMs: 180_000,
-        }),
-        branchNode(
-          'maybe-post-verify-navigate',
-          'auth_bootstrap_post_verify_navigate',
-          toolNode('navigate-post-verify-page', 'page_navigate', {
-            input: {
-              url: postVerifyNavigateUrl,
-              waitUntil: 'networkidle',
-              enableNetworkMonitoring: true,
-            },
-          }),
-          toolNode('skip-post-verify-navigate', 'console_execute', {
-            input: {
-              expression: '({ skipped: true, step: "post_verify_navigate", reason: "postVerifyNavigateUrl not configured" })',
-            },
-          }),
-          () => Boolean(postVerifyNavigateUrl),
-        ),
-      ]),
-      toolNode('skip-email-verification', 'console_execute', {
-        input: {
-          expression: '({ skipped: true, step: "email_verification", reason: "config_disabled" })',
-        },
-      }),
-      () => enableEmailVerification && Boolean(emailProviderUrl),
-    );
+    const mailboxBranch = branchNode('maybe-email-verification', 'auth_bootstrap_enable_email_verification')
+      .predicateFn(() => enableEmailVerification && Boolean(emailProviderUrl))
+      .whenTrue(sequenceNode('email-verification-sequence')
+        .step(toolNode('open-latest-mail', 'run_extension_workflow')
+          .input({ workflowId: mailOpenWorkflowId, config: { workflows: { tempMailOpenLatest: { mailboxUrl: emailProviderUrl, ...mailOpenConfig } } } })
+          .timeout(180_000))
+        .step(toolNode('extract-verification-link', 'run_extension_workflow')
+          .input({ workflowId: mailExtractWorkflowId, config: { workflows: { tempMailExtractLink: { detailUrl: '', ...mailExtractConfig } } } })
+          .timeout(180_000))
+        .step(branchNode('maybe-post-verify-navigate', 'auth_bootstrap_post_verify_navigate')
+          .predicateFn(() => Boolean(postVerifyNavigateUrl))
+          .whenTrue(toolNode('navigate-post-verify-page', 'page_navigate').input({ url: postVerifyNavigateUrl, waitUntil: 'networkidle', enableNetworkMonitoring: true }))
+          .whenFalse(toolNode('skip-post-verify-navigate', 'console_execute').input({ expression: '({ skipped: true, step: "post_verify_navigate", reason: "postVerifyNavigateUrl not configured" })' }))))
+      .whenFalse(toolNode('skip-email-verification', 'console_execute').input({ expression: '({ skipped: true, step: "email_verification", reason: "config_disabled" })' }));
 
-    const authExtractBranch = branchNode(
-      'maybe-auth-extract',
-      'auth_bootstrap_run_auth_extract',
-      sequenceNode('auth-extract-sequence', [
-        branchNode(
-          'maybe-navigate-auth-extract-page',
-          'auth_bootstrap_auth_extract_page_url',
-          toolNode('navigate-auth-extract-page', 'page_navigate', {
-            input: {
-              url: authExtractPageUrl,
-              waitUntil: 'networkidle',
-              enableNetworkMonitoring: true,
-            },
-          }),
-          toolNode('skip-auth-extract-page-nav', 'console_execute', {
-            input: {
-              expression: '({ skipped: true, step: "auth_extract_page_nav", reason: "authExtractPageUrl not configured" })',
-            },
-          }),
-          () => Boolean(authExtractPageUrl),
-        ),
-        toolNode('auth-extract', 'page_script_run', {
-          input: { name: 'auth_extract' },
-        }),
-      ]),
-      toolNode('skip-auth-extract', 'console_execute', {
-        input: {
-          expression: '({ skipped: true, step: "auth_extract", reason: "config_disabled" })',
-        },
-      }),
-      () => runAuthExtract,
-    );
+    const authExtractBranch = branchNode('maybe-auth-extract', 'auth_bootstrap_run_auth_extract')
+      .predicateFn(() => runAuthExtract)
+      .whenTrue(sequenceNode('auth-extract-sequence')
+        .step(branchNode('maybe-navigate-auth-extract-page', 'auth_bootstrap_auth_extract_page_url')
+          .predicateFn(() => Boolean(authExtractPageUrl))
+          .whenTrue(toolNode('navigate-auth-extract-page', 'page_navigate').input({ url: authExtractPageUrl, waitUntil: 'networkidle', enableNetworkMonitoring: true }))
+          .whenFalse(toolNode('skip-auth-extract-page-nav', 'console_execute').input({ expression: '({ skipped: true, step: "auth_extract_page_nav", reason: "authExtractPageUrl not configured" })' })))
+        .step(toolNode('auth-extract', 'page_script_run').input({ name: 'auth_extract' })))
+      .whenFalse(toolNode('skip-auth-extract', 'console_execute').input({ expression: '({ skipped: true, step: "auth_extract", reason: "config_disabled" })' }));
 
-    const networkAuthBranch = branchNode(
-      'maybe-network-auth-extract',
-      'auth_bootstrap_run_network_auth_extract',
-      toolNode('network-auth-extract', 'network_extract_auth', {
-        input: { minConfidence: authMinConfidence },
-      }),
-      toolNode('skip-network-auth-extract', 'console_execute', {
-        input: {
-          expression: '({ skipped: true, step: "network_auth_extract", reason: "config_disabled" })',
-        },
-      }),
-      () => runNetworkAuthExtract,
-    );
+    const networkAuthBranch = branchNode('maybe-network-auth-extract', 'auth_bootstrap_run_network_auth_extract')
+      .predicateFn(() => runNetworkAuthExtract)
+      .whenTrue(toolNode('network-auth-extract', 'network_extract_auth').input({ minConfidence: authMinConfidence }))
+      .whenFalse(toolNode('skip-network-auth-extract', 'console_execute').input({ expression: '({ skipped: true, step: "network_auth_extract", reason: "config_disabled" })' }));
 
-    return sequenceNode('auth-bootstrap-root', [
-      branchNode(
-        'maybe-preclear-auth-state',
-        'auth_bootstrap_preclear_auth_state',
-        sequenceNode('preclear-auth-state-sequence', [
-          toolNode('navigate-preclear-page', 'page_navigate', {
-            input: {
-              url: preAuthClearUrl,
-              waitUntil: 'domcontentloaded',
-              enableNetworkMonitoring: true,
-            },
-          }),
-          branchNode(
-            'maybe-clear-cookies',
-            'auth_bootstrap_clear_cookies_first',
-            toolNode('clear-cookies', 'page_clear_cookies', {
-              input: {},
-            }),
-            toolNode('skip-clear-cookies', 'console_execute', {
-              input: {
-                expression: '({ skipped: true, step: "clear_cookies", reason: "config_disabled" })',
-              },
-            }),
-            () => clearCookiesFirst,
-          ),
-          branchNode(
-            'maybe-clear-storage',
-            'auth_bootstrap_clear_storage_first',
-            toolNode('clear-web-storage', 'page_evaluate', {
-              input: {
-                code: '(() => { try { localStorage.clear(); sessionStorage.clear(); } catch {} return { ok: true, href: location.href }; })()',
-              },
-            }),
-            toolNode('skip-clear-storage', 'console_execute', {
-              input: {
-                expression: '({ skipped: true, step: "clear_storage", reason: "config_disabled" })',
-              },
-            }),
-            () => clearStorageFirst,
-          ),
-        ]),
-        toolNode('skip-preclear-auth-state', 'console_execute', {
-          input: {
-            expression: '({ skipped: true, step: "preclear_auth_state", reason: "all clear flags disabled" })',
-          },
-        }),
-        () => clearCookiesFirst || clearStorageFirst,
-      ),
-      toolNode('run-register-workflow', 'run_extension_workflow', {
-        input: {
-          workflowId: registerWorkflowId,
-          config: registerConfig,
-        },
-        timeoutMs: Math.max(180_000, registerTimeoutMs + 60_000),
-      }),
-      mailboxBranch,
-      authExtractBranch,
-      networkAuthBranch,
-      toolNode('emit-summary', 'console_execute', {
-        input: {
-          expression: `(${JSON.stringify({
-            workflowId,
-            registerWorkflowId,
-            registerUrl,
-            email,
-            enableEmailVerification,
-            emailProviderUrl,
-            mailOpenWorkflowId,
-            mailExtractWorkflowId,
-            postVerifyNavigateUrl,
-            authExtractPageUrl,
-            runAuthExtract,
-            runNetworkAuthExtract,
-            authMinConfidence,
-            note: 'Inspect nested workflow outputs for form submit, mail opening, link extraction, and final auth artifacts.',
-          })})`,
-        },
-      }),
-    ]);
+    return sequenceNode('auth-bootstrap-root')
+      .step(branchNode('maybe-preclear-auth-state', 'auth_bootstrap_preclear_auth_state')
+        .predicateFn(() => clearCookiesFirst || clearStorageFirst)
+        .whenTrue(sequenceNode('preclear-auth-state-sequence')
+          .step(toolNode('navigate-preclear-page', 'page_navigate').input({ url: preAuthClearUrl, waitUntil: 'domcontentloaded', enableNetworkMonitoring: true }))
+          .step(branchNode('maybe-clear-cookies', 'auth_bootstrap_clear_cookies_first')
+            .predicateFn(() => clearCookiesFirst)
+            .whenTrue(toolNode('clear-cookies', 'page_clear_cookies').input({}))
+            .whenFalse(toolNode('skip-clear-cookies', 'console_execute').input({ expression: '({ skipped: true, step: "clear_cookies", reason: "config_disabled" })' })))
+          .step(branchNode('maybe-clear-storage', 'auth_bootstrap_clear_storage_first')
+            .predicateFn(() => clearStorageFirst)
+            .whenTrue(toolNode('clear-web-storage', 'page_evaluate').input({ code: '(() => { try { localStorage.clear(); sessionStorage.clear(); } catch {} return { ok: true, href: location.href }; })()' }))
+            .whenFalse(toolNode('skip-clear-storage', 'console_execute').input({ expression: '({ skipped: true, step: "clear_storage", reason: "config_disabled" })' }))))
+        .whenFalse(toolNode('skip-preclear-auth-state', 'console_execute').input({ expression: '({ skipped: true, step: "preclear_auth_state", reason: "all clear flags disabled" })' })))
+      .step(toolNode('run-register-workflow', 'run_extension_workflow')
+        .input({ workflowId: registerWorkflowId, config: registerConfig })
+        .timeout(Math.max(180_000, registerTimeoutMs + 60_000)))
+      .step(mailboxBranch)
+      .step(authExtractBranch)
+      .step(networkAuthBranch)
+      .step(toolNode('emit-summary', 'console_execute').input({
+        expression: `(${JSON.stringify({
+          workflowId, registerWorkflowId, registerUrl, email,
+          enableEmailVerification, emailProviderUrl,
+          mailOpenWorkflowId, mailExtractWorkflowId,
+          postVerifyNavigateUrl, authExtractPageUrl,
+          runAuthExtract, runNetworkAuthExtract, authMinConfidence,
+          note: 'Inspect nested workflow outputs for form submit, mail opening, link extraction, and final auth artifacts.',
+        })})`,
+      }))
+      .build();
   },
 
   onStart(ctx) {
-    ctx.emitMetric('workflow_runs_total', 1, 'counter', {
-      workflowId,
-      stage: 'start',
-    });
+    ctx.emitMetric('workflow_runs_total', 1, 'counter', { workflowId, stage: 'start' });
   },
 
   onFinish(ctx) {
-    ctx.emitMetric('workflow_runs_total', 1, 'counter', {
-      workflowId,
-      stage: 'finish',
-    });
+    ctx.emitMetric('workflow_runs_total', 1, 'counter', { workflowId, stage: 'finish' });
   },
 
   onError(ctx, error) {
-    ctx.emitMetric('workflow_errors_total', 1, 'counter', {
-      workflowId,
-      error: error.name,
-    });
+    ctx.emitMetric('workflow_errors_total', 1, 'counter', { workflowId, error: error.name });
   },
 };
 
