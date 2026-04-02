@@ -3,12 +3,13 @@
     "target": "ES2022",
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
-    "noEmit": false,
-    "outDir": "dist",
-    "rootDir": ".",
+    "lib": ["ES2022"],
     "strict": true,
     "skipLibCheck": true,
-    "types": ["node"]
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "rootDir": ".",
+    "outDir": "dist"
   },
   "include": ["workflow.ts"],
   "exclude": ["dist", "node_modules"]
