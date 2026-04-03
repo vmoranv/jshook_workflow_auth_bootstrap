@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@jshookmcp/extension-sdk':
-        specifier: ^0.1.0
-        version: 0.1.2(zod@4.3.6)
+        specifier: ^0.3.0
+        version: 0.3.0(zod@4.3.6)
       '@modelcontextprotocol/sdk':
         specifier: ^1.27.1
         version: 1.27.1(zod@4.3.6)
@@ -33,8 +33,8 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@jshookmcp/extension-sdk@0.1.2':
-    resolution: {integrity: sha512-knSOviY9vyDGWVAvuM7LINttkPh3nsXxt/aqzbIr1408/LJrCAUAKFoYtqkC9tEjaLWbhTsVTel+1Os7m6u1PQ==}
+  '@jshookmcp/extension-sdk@0.3.0':
+    resolution: {integrity: sha512-G+PR/s7B+LdGmn1mOMT1XC6C5yEDqQJjqCIFDwVOh6T0+Ev5Y6xg+cH80kAyCEPNJG5LG43w891oFDR+Zsv50g==}
     engines: {node: '>=20.0.0'}
 
   '@modelcontextprotocol/sdk@1.27.1':
@@ -418,7 +418,7 @@ snapshots:
     dependencies:
       hono: 4.12.5
 
-  '@jshookmcp/extension-sdk@0.1.2(zod@4.3.6)':
+  '@jshookmcp/extension-sdk@0.3.0(zod@4.3.6)':
     dependencies:
       '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
       dotenv: 17.3.1
