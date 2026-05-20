@@ -9,8 +9,8 @@ importers:
   .:
     dependencies:
       '@jshookmcp/extension-sdk':
-        specifier: ^0.1.0
-        version: 0.1.2(zod@4.3.6)
+        specifier: ^0.3.2
+        version: 0.3.2(zod@4.3.6)
       '@modelcontextprotocol/sdk':
         specifier: ^1.27.1
         version: 1.27.1(zod@4.3.6)
@@ -33,12 +33,22 @@ packages:
     peerDependencies:
       hono: ^4
 
-  '@jshookmcp/extension-sdk@0.1.2':
-    resolution: {integrity: sha512-knSOviY9vyDGWVAvuM7LINttkPh3nsXxt/aqzbIr1408/LJrCAUAKFoYtqkC9tEjaLWbhTsVTel+1Os7m6u1PQ==}
+  '@jshookmcp/extension-sdk@0.3.2':
+    resolution: {integrity: sha512-dYL5OSyrJBUeWIlS3+KfPuv68r87hCgI1d6zE/SFKH0v+ueIB1tNmRwOOse9Roc/ehbpTBM5RMjR9Lx0fQXMcA==}
     engines: {node: '>=20.0.0'}
 
   '@modelcontextprotocol/sdk@1.27.1':
     resolution: {integrity: sha512-sr6GbP+4edBwFndLbM60gf07z0FQ79gaExpnsjMGePXqFcSSb7t6iscpjk9DhFhwd+mTEQrzNafGP8/iGGFYaA==}
+    engines: {node: '>=18'}
+    peerDependencies:
+      '@cfworker/json-schema': ^4.1.1
+      zod: ^3.25 || ^4.0
+    peerDependenciesMeta:
+      '@cfworker/json-schema':
+        optional: true
+
+  '@modelcontextprotocol/sdk@1.29.0':
+    resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
     engines: {node: '>=18'}
     peerDependencies:
       '@cfworker/json-schema': ^4.1.1
@@ -120,6 +130,10 @@ packages:
 
   dotenv@17.3.1:
     resolution: {integrity: sha512-IO8C/dzEb6O3F9/twg6ZLXz164a2fhTnEWb95H23Dm4OuN+92NmEAlTrupP9VW6Jm3sO26tQlqyvyi4CsnY9GA==}
+    engines: {node: '>=12'}
+
+  dotenv@17.4.2:
+    resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
     engines: {node: '>=12'}
 
   dunder-proto@1.0.1:
@@ -418,16 +432,38 @@ snapshots:
     dependencies:
       hono: 4.12.5
 
-  '@jshookmcp/extension-sdk@0.1.2(zod@4.3.6)':
+  '@jshookmcp/extension-sdk@0.3.2(zod@4.3.6)':
     dependencies:
-      '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
-      dotenv: 17.3.1
+      '@modelcontextprotocol/sdk': 1.29.0(zod@4.3.6)
+      dotenv: 17.4.2
     transitivePeerDependencies:
       - '@cfworker/json-schema'
       - supports-color
       - zod
 
   '@modelcontextprotocol/sdk@1.27.1(zod@4.3.6)':
+    dependencies:
+      '@hono/node-server': 1.19.11(hono@4.12.5)
+      ajv: 8.18.0
+      ajv-formats: 3.0.1(ajv@8.18.0)
+      content-type: 1.0.5
+      cors: 2.8.6
+      cross-spawn: 7.0.6
+      eventsource: 3.0.7
+      eventsource-parser: 3.0.6
+      express: 5.2.1
+      express-rate-limit: 8.3.0(express@5.2.1)
+      hono: 4.12.5
+      jose: 6.2.0
+      json-schema-typed: 8.0.2
+      pkce-challenge: 5.0.1
+      raw-body: 3.0.2
+      zod: 4.3.6
+      zod-to-json-schema: 3.25.1(zod@4.3.6)
+    transitivePeerDependencies:
+      - supports-color
+
+  '@modelcontextprotocol/sdk@1.29.0(zod@4.3.6)':
     dependencies:
       '@hono/node-server': 1.19.11(hono@4.12.5)
       ajv: 8.18.0
@@ -521,6 +557,8 @@ snapshots:
   depd@2.0.0: {}
 
   dotenv@17.3.1: {}
+
+  dotenv@17.4.2: {}
 
   dunder-proto@1.0.1:
     dependencies:
